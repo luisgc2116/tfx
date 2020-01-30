@@ -23,15 +23,41 @@ import tempfile
 import tensorflow as tf
 import tensorflow_transform as tft
 from tensorflow_transform.beam import tft_unit
+import tfx_bsl
 from tfx import types
 from tfx.components.testdata.module_file import transform_module
 from tfx.components.transform import executor
+from tfx.components.transform import labels
 from tfx.types import artifact_utils
 from tfx.types import standard_artifacts
 
 
+_TFXIO_NAMED_PARAMETERS = [
+    dict(testcase_name='NoTFXIO', use_tfxio=False),
+]
+
+# TODO(b/148213578): Remove after TFX 0.22 is out.
+if tfx_bsl.__version__ >= '0.22':
+  _TFXIO_NAMED_PARAMETERS.append(
+      dict(testcase_name='WithTFXIO', use_tfxio=True))
+
+
 class _TempPath(types.Artifact):
   TYPE_NAME = 'TempPath'
+
+
+class ExecutorForTesting(executor.Executor):
+
+  def __init__(self):
+    super(ExecutorForTesting, self).__init__()
+    self._use_tfxio = False
+
+  def set_use_tfxio(self, use_tfxio):
+    self._use_tfxio = use_tfxio
+
+  def Transform(self, inputs, outputs, status_file):
+    inputs[labels.USE_TFXIO_LABEL] = self._use_tfxio
+    super(ExecutorForTesting, self).Transform(inputs, outputs, status_file)
 
 
 # TODO(b/122478841): Add more detailed tests.
@@ -95,7 +121,7 @@ class ExecutorTest(tft_unit.TransformTestCase):
         transform_module.preprocessing_fn.__name__)
 
     # Executor for test.
-    self._transform_executor = executor.Executor()
+    self._transform_executor = ExecutorForTesting()
 
   def _verify_transform_outputs(self):
     self.assertNotEqual(
@@ -143,7 +169,7 @@ class ExecutorTest(tft_unit.TransformTestCase):
     self.assertEqual(committed, attempted)
     self.assertEqual(committed, expected_count)
 
-  def _runPipelineGetMetrics(self, inputs, outputs, exec_properties):
+  def _runPipelineGetMetrics(self, inputs, outputs, exec_properties, use_tfxio):
     pipelines = []
 
     def _create_pipeline_wrapper(*_):
@@ -152,44 +178,54 @@ class ExecutorTest(tft_unit.TransformTestCase):
       return result
 
     with tft_unit.mock.patch.object(
-        executor.Executor,
+        ExecutorForTesting,
         '_CreatePipeline',
         autospec=True,
         side_effect=_create_pipeline_wrapper):
-      transform_executor = executor.Executor()
+      transform_executor = ExecutorForTesting()
+      transform_executor.set_use_tfxio(use_tfxio)
       transform_executor.Do(self._input_dict, self._output_dict,
                             self._exec_properties)
     assert len(pipelines) == 1
     return pipelines[0].metrics
 
-  def testDoWithModuleFile(self):
+  @tft_unit.named_parameters(_TFXIO_NAMED_PARAMETERS)
+  def testDoWithModuleFile(self, use_tfxio):
     self._exec_properties['module_file'] = self._module_file
+    self._transform_executor.set_use_tfxio(use_tfxio)
     self._transform_executor.Do(self._input_dict, self._output_dict,
                                 self._exec_properties)
     self._verify_transform_outputs()
 
-  def testDoWithPreprocessingFn(self):
+  @tft_unit.named_parameters(_TFXIO_NAMED_PARAMETERS)
+  def testDoWithPreprocessingFn(self, use_tfxio):
     self._exec_properties['preprocessing_fn'] = self._preprocessing_fn
+    self._transform_executor.set_use_tfxio(use_tfxio)
     self._transform_executor.Do(self._input_dict, self._output_dict,
                                 self._exec_properties)
     self._verify_transform_outputs()
 
-  def testDoWithNoPreprocessingFn(self):
+  @tft_unit.named_parameters(_TFXIO_NAMED_PARAMETERS)
+  def testDoWithNoPreprocessingFn(self, use_tfxio):
+    self._transform_executor.set_use_tfxio(use_tfxio)
     with self.assertRaises(ValueError):
       self._transform_executor.Do(self._input_dict, self._output_dict,
                                   self._exec_properties)
 
-  def testDoWithDuplicatePreprocessingFn(self):
+  @tft_unit.named_parameters(_TFXIO_NAMED_PARAMETERS)
+  def testDoWithDuplicatePreprocessingFn(self, use_tfxio):
     self._exec_properties['module_file'] = self._module_file
     self._exec_properties['preprocessing_fn'] = self._preprocessing_fn
+    self._transform_executor.set_use_tfxio(use_tfxio)
     with self.assertRaises(ValueError):
       self._transform_executor.Do(self._input_dict, self._output_dict,
                                   self._exec_properties)
 
-  def testCounters(self):
+  @tft_unit.named_parameters(_TFXIO_NAMED_PARAMETERS)
+  def testCounters(self, use_tfxio):
     self._exec_properties['preprocessing_fn'] = self._preprocessing_fn
     metrics = self._runPipelineGetMetrics(self._input_dict, self._output_dict,
-                                          self._exec_properties)
+                                          self._exec_properties, use_tfxio)
 
     # The test data has 10036 instances in the train dataset, and 4964 instances
     # in the eval dataset (obtained by running:
@@ -217,7 +253,8 @@ class ExecutorTest(tft_unit.TransformTestCase):
     # so we expect 9 + 7 + 1 = 17 transform columns.
     self._assertMetricsCounterEqual(metrics, 'transform_columns_count', 17)
 
-  def testDoWithCache(self):
+  @tft_unit.named_parameters(_TFXIO_NAMED_PARAMETERS)
+  def testDoWithCache(self, use_tfxio):
 
     class InputCache(types.Artifact):
       TYPE_NAME = 'InputCache'
@@ -232,6 +269,7 @@ class ExecutorTest(tft_unit.TransformTestCase):
     self._output_dict['cache_output_path'] = [output_cache_artifact]
 
     self._exec_properties['module_file'] = self._module_file
+    self._transform_executor.set_use_tfxio(use_tfxio)
     self._transform_executor.Do(self._input_dict, self._output_dict,
                                 self._exec_properties)
     self._verify_transform_outputs()
