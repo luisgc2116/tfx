@@ -14,6 +14,8 @@
 *   Updated Evaluator's executor to support model validation.
 *   Introduced awareness of chief worker to Trainer's executor, in case running
     in distributed training cluster.
+*   Added support for automatically downloading input data to files and
+    uploading output data from files to container-based components.
 
 ## Bug fixes and other changes
 *   Added --skaffold_cmd flag when updating a pipeline for kubeflow in CLI.

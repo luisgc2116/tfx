@@ -18,10 +18,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import tempfile
 from typing import Any, Dict, List, Text, cast
 
 import absl
 import docker
+import tensorflow as tf
 
 from tfx import types
 from tfx.components.base import executor_spec
@@ -77,11 +80,32 @@ class DockerComponentLauncher(base_component_launcher.BaseComponentLauncher):
       client = docker.from_env()
 
     run_args = docker_config.to_run_args()
+
+    # Preparing the volume mounts for input and output files
+    volume_mounts = run_args.pop('volumes', {}) or {}
+    container_path_to_host_path = {}
+    host_art_dir = tempfile.mkdtemp()
+    for path in (list((executor_container_spec.input_path_uris or {}).keys()) +
+                 list((executor_container_spec.output_path_uris or {}).keys())):
+      host_path = os.path.join(host_art_dir, path)
+      host_dir = os.path.dirname(host_path)
+      os.makedirs(host_dir)
+      container_path_to_host_path[path] = host_path
+      volume_mounts[host_path] = dict(
+          bind=path,
+          mode='rw',
+      )
+
+    # Downloading the input files
+    for path, uri in (executor_container_spec.input_path_uris or {}).items():
+      tf.io.gfile.copy(uri, container_path_to_host_path[path])
+
     container = client.containers.run(
         image=executor_container_spec.image,
         entrypoint=executor_container_spec.command,
         command=executor_container_spec.args,
         detach=True,
+        volumes=volume_mounts,
         **run_args)
 
     # Streaming logs
@@ -91,6 +115,11 @@ class DockerComponentLauncher(base_component_launcher.BaseComponentLauncher):
     if exit_code != 0:
       raise RuntimeError(
           'Container exited with error code "{}"'.format(exit_code))
+
+    # Uploading the output files
+    for path, uri in (executor_container_spec.output_path_uris or {}).items():
+      tf.io.gfile.copy(container_path_to_host_path[path], uri)
+
     # TODO(b/141192583): Report data to publisher
     # - report container digest
     # - report replaced command line entrypoints

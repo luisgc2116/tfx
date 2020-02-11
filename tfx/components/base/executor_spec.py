@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import abc
-from typing import List, Text, Type
+from typing import Dict, List, Text, Type
 
 from six import with_metaclass
 
@@ -74,13 +74,19 @@ class ExecutorContainerSpec(ExecutorSpec):
       output metadata at runtime.
   """
 
-  def __init__(self,
-               image: Text,
-               command: List[Text] = None,
-               args: List[Text] = None):
+  def __init__(
+      self,
+      image: Text,
+      command: List[Text] = None,
+      args: List[Text] = None,
+      input_path_uris: Dict[Text, Text] = None,
+      output_path_uris: Dict[Text, Text] = None,
+  ):
     if not image:
       raise ValueError('image cannot be None or empty.')
     self.image = image
     self.command = command
     self.args = args
+    self.input_path_uris = input_path_uris
+    self.output_path_uris = output_path_uris
     super(ExecutorContainerSpec, self).__init__()
