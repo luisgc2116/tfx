@@ -75,7 +75,7 @@ _query_sample_rate = 0.0001  # Generate a 0.01% random sample.
 #           dropoff_latitude,
 #           dropoff_longitude,
 #           trip_miles,
-#           pickup_census_tract,
+#           CAST(pickup_census_tract AS STRING) AS pickup_census_tract,,
 #           dropoff_census_tract,
 #           payment_type,
 #           company,
