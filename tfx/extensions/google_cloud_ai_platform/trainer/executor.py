@@ -23,6 +23,7 @@ import absl
 
 from tfx import types
 from tfx.components.base import base_executor
+from tfx.components.base import executor_spec
 from tfx.components.trainer import executor as tfx_trainer_executor
 from tfx.extensions.google_cloud_ai_platform import runner
 
@@ -30,6 +31,7 @@ from tfx.extensions.google_cloud_ai_platform import runner
 # Keys to the items in custom_config passed as a part of exec_properties.
 TRAINING_ARGS_KEY = 'ai_platform_training_args'
 JOB_ID_KEY = 'ai_platform_training_job_id'
+EXECUTOR_CLASS_SPEC = 'ai_platform_training_executor_class_spec'
 
 
 class Executor(base_executor.BaseExecutor):
@@ -67,8 +69,18 @@ class Executor(base_executor.BaseExecutor):
       raise ValueError(err_msg)
 
     job_id = custom_config.get(JOB_ID_KEY)
-    executor_class_path = '%s.%s' % (tfx_trainer_executor.Executor.__module__,
-                                     tfx_trainer_executor.Executor.__name__)
+
+    if EXECUTOR_CLASS_SPEC in custom_config:
+      executor_class_spec = custom_config.get(
+          EXECUTOR_CLASS_SPEC)  # type: executor_spec.ExecutorClassSpec
+      executor_class = executor_class_spec.executor_class
+    elif 'run_fn' in exec_properties:  # Use generic trainer for `run_fn`.
+      executor_class = tfx_trainer_executor.GenericExecutor
+    else:
+      executor_class = tfx_trainer_executor.Executor
+    executor_class_path = '%s.%s' % (executor_class.__module__,
+                                     executor_class.__name__)
+
     return runner.start_aip_training(input_dict, output_dict, exec_properties,
                                      executor_class_path, training_inputs,
                                      job_id)
