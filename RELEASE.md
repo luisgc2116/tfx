@@ -21,6 +21,8 @@
 *   Added 'tfx_runner' label for CAIP, BQML and Dataflow jobs submitted from
     TFX components.
 *   Fixed the Taxi Colab notebook.
+*   Supports the generic trainer executor when using CAIP Training.
+*   Added a native keras model in the taxi template.
 
 ### Deprecations
 

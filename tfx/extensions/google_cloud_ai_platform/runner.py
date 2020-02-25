@@ -18,7 +18,6 @@ from __future__ import division
 from __future__ import print_function
 
 import datetime
-import json
 import sys
 import time
 from typing import Any, Dict, List, Optional, Text
@@ -31,6 +30,7 @@ import tensorflow as tf
 from tfx import types
 from tfx import version
 from tfx.types import artifact_utils
+from tfx.utils import json_utils
 from tfx.utils import telemetry_utils
 
 _POLLING_INTERVAL_IN_SECONDS = 30
@@ -123,7 +123,7 @@ def start_aip_training(input_dict: Dict[Text, List[types.Artifact]],
   absl.logging.info('json_inputs=\'%s\'.', json_inputs)
   json_outputs = artifact_utils.jsonify_artifact_dict(output_dict)
   absl.logging.info('json_outputs=\'%s\'.', json_outputs)
-  json_exec_properties = json.dumps(exec_properties, sort_keys=True)
+  json_exec_properties = json_utils.dumps(exec_properties)
   absl.logging.info('json_exec_properties=\'%s\'.', json_exec_properties)
 
   # Configure AI Platform training job

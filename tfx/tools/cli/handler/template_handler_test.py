@@ -43,14 +43,15 @@ class TemplateHandlerTest(tf.test.TestCase):
     template_handler.copy_template(flags)
     copied_files = os.listdir(test_dir)
     self.assertNotEqual(copied_files, [])
-    self.assertContainsSubset(['__init__.py', 'pipeline.py'], copied_files)
+    self.assertContainsSubset(['__init__.py', 'beam_dag_runner.py'],
+                              copied_files)
     self.assertTrue(
         os.path.exists(os.path.join(test_dir, 'data', 'data.csv')))
 
-    with open(os.path.join(test_dir, 'configs.py')) as fp:
+    with open(os.path.join(test_dir, 'pipeline', 'configs.py')) as fp:
       configs_py_content = fp.read()
     self.assertIn(pipeline_name, configs_py_content)
-    with open(os.path.join(test_dir, 'model.py')) as fp:
+    with open(os.path.join(test_dir, 'models', 'estimator', 'model.py')) as fp:
       model_py_content = fp.read()
     self.assertNotIn('from tfx.experimental.templates.taxi import',
                      model_py_content)

@@ -19,7 +19,6 @@ from __future__ import division
 from __future__ import print_function
 
 import abc
-import json
 import multiprocessing
 import os
 import sys
@@ -36,6 +35,7 @@ import tensorflow.compat.v1 as tf
 
 from tfx import types
 from tfx.types import artifact_utils
+from tfx.utils import json_utils
 from tfx.utils import telemetry_utils
 from tfx.utils import dependency_utils
 
@@ -164,7 +164,8 @@ class BaseExecutor(with_metaclass(abc.ABCMeta, object)):
     absl.logging.debug('Outputs for %s are: %s', self.__class__.__name__,
                        artifact_utils.jsonify_artifact_dict(outputs))
     absl.logging.debug('Execution properties for %s are: %s',
-                       self.__class__.__name__, json.dumps(exec_properties))
+                       self.__class__.__name__,
+                       json_utils.dumps(exec_properties))
 
 
 class EmptyExecutor(BaseExecutor):
