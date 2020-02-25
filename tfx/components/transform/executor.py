@@ -643,6 +643,9 @@ class Executor(base_executor.BaseExecutor):
       PCollection of decoded data.
     """
 
+    # TODO(b/142683826): Beam type check error in
+    # //third_party/tfx/components/transform:executor_test.python3
+    @beam.typehints.no_annotations
     def decode_example(kv: Tuple[bytes, bytes]) -> Dict[Text, Any]:  # pylint: disable=invalid-name
       """Decodes a single example."""
       (key, value) = kv
