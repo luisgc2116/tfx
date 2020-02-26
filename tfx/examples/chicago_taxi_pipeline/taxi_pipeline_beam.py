@@ -26,6 +26,7 @@ import absl
 from tfx.components import CsvExampleGen
 from tfx.components import Evaluator
 from tfx.components import ExampleValidator
+from tfx.components import InfraValidator
 from tfx.components import ModelValidator
 from tfx.components import Pusher
 from tfx.components import SchemaGen
@@ -36,6 +37,7 @@ from tfx.orchestration import metadata
 from tfx.orchestration import pipeline
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 from tfx.proto import evaluator_pb2
+from tfx.proto import infra_validator_pb2
 from tfx.proto import pusher_pb2
 from tfx.proto import trainer_pb2
 from tfx.utils.dsl_utils import external_input
@@ -115,11 +117,23 @@ def _create_pipeline(pipeline_name: Text, pipeline_root: Text, data_root: Text,
   model_validator = ModelValidator(
       examples=example_gen.outputs['examples'], model=trainer.outputs['model'])
 
+  infra_validator = InfraValidator(
+      model=trainer.outputs['model'],
+      examples=example_gen.outputs['examples'],
+      serving_spec=infra_validator_pb2.ServingSpec(
+          tensorflow_serving=infra_validator_pb2.TensorFlowServing(
+              tags=['2.1.0']),
+          local_docker=infra_validator_pb2.LocalDockerConfig()),
+      request_spec=infra_validator_pb2.RequestSpec(
+          tensorflow_serving=infra_validator_pb2.TensorFlowServingRequestSpec(
+              rpc_kind=infra_validator_pb2.TensorFlowServingRpcKind.CLASSIFY)))
+
   # Checks whether the model passed the validation steps and pushes the model
   # to a file destination if check passed.
   pusher = Pusher(
       model=trainer.outputs['model'],
       model_blessing=model_validator.outputs['blessing'],
+      infra_blessing=infra_validator.outputs['blessing'],
       push_destination=pusher_pb2.PushDestination(
           filesystem=pusher_pb2.PushDestination.Filesystem(
               base_directory=serving_model_dir)))

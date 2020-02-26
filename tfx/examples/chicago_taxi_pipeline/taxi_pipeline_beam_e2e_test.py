@@ -54,10 +54,16 @@ class TaxiPipelineBeamEndToEndTest(tf.test.TestCase):
       execution = tf.io.gfile.listdir(os.path.join(component_path, output))
       self.assertEqual(1, len(execution))
 
+  def assertInfraValidatorPassed(self) -> None:
+    blessed_path = os.path.join(self._pipeline_root, 'InfraValidator',
+                                'INFRA_BLESSED')
+    self.assertTrue(tf.io.gfile.exists(blessed_path))
+
   def assertPipelineExecution(self) -> None:
     self.assertExecutedOnce('CsvExampleGen')
     self.assertExecutedOnce('Evaluator')
     self.assertExecutedOnce('ExampleValidator')
+    self.assertExecutedOnce('InfraValidator')
     self.assertExecutedOnce('ModelValidator')
     self.assertExecutedOnce('Pusher')
     self.assertExecutedOnce('SchemaGen')
@@ -66,6 +72,8 @@ class TaxiPipelineBeamEndToEndTest(tf.test.TestCase):
     self.assertExecutedOnce('Transform')
 
   def testTaxiPipelineBeam(self):
+    num_components = 10
+
     BeamDagRunner().run(
         taxi_pipeline_beam._create_pipeline(
             pipeline_name=self._pipeline_name,
@@ -84,9 +92,10 @@ class TaxiPipelineBeamEndToEndTest(tf.test.TestCase):
       artifact_count = len(m.store.get_artifacts())
       execution_count = len(m.store.get_executions())
       self.assertGreaterEqual(artifact_count, execution_count)
-      self.assertEqual(9, execution_count)
+      self.assertEqual(num_components, execution_count)
 
     self.assertPipelineExecution()
+    self.assertInfraValidatorPassed()
 
     # Runs pipeline the second time.
     BeamDagRunner().run(
@@ -104,8 +113,8 @@ class TaxiPipelineBeamEndToEndTest(tf.test.TestCase):
       # Artifact count is increased by 2 caused by ModelValidator and Pusher.
       self.assertEqual(artifact_count + 2, len(m.store.get_artifacts()))
       artifact_count = len(m.store.get_artifacts())
-      # 9 more cached executions.
-      self.assertEqual(18, len(m.store.get_executions()))
+      # 10 more cached executions.
+      self.assertEqual(num_components * 2, len(m.store.get_executions()))
 
     # Runs pipeline the third time.
     BeamDagRunner().run(
@@ -123,7 +132,7 @@ class TaxiPipelineBeamEndToEndTest(tf.test.TestCase):
       # Artifact count is unchanged.
       self.assertEqual(artifact_count, len(m.store.get_artifacts()))
       # 9 more cached executions.
-      self.assertEqual(27, len(m.store.get_executions()))
+      self.assertEqual(num_components * 3, len(m.store.get_executions()))
 
 
 if __name__ == '__main__':
