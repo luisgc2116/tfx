@@ -33,6 +33,7 @@ from tfx.components.example_gen.csv_example_gen.component import CsvExampleGen
 from tfx.components.model_validator.component import ModelValidator
 from tfx.components.pusher.component import Pusher
 from tfx.components.statistics_gen.component import StatisticsGen
+from tfx.components.trainer import executor as trainer_executor
 from tfx.components.trainer.component import Trainer
 from tfx.components.transform.component import Transform
 from tfx.extensions.google_cloud_ai_platform.pusher import executor as ai_platform_pusher_executor
@@ -262,6 +263,43 @@ class KubeflowGCPIntegrationTest(test_utils.BaseKubeflowTest):
                 os.path.join(
                     path_utils.serving_model_dir(model_uri), 'export',
                     'chicago-taxi'))))
+
+  def testAIPlatformGenericTrainerPipeline(self):
+    """Trainer-only pipeline on AI Platform Training with GenericTrainer."""
+    pipeline_name = 'kubeflow-aip-generic-trainer-test-{}'.format(
+        self._random_id())
+    pipeline = self._create_pipeline(pipeline_name, [
+        self.schema_importer,
+        self.transformed_examples_importer,
+        self.transform_graph_importer,
+        Trainer(
+            custom_executor_spec=executor_spec.ExecutorClassSpec(
+                ai_platform_trainer_executor.Executor),
+            module_file=self._trainer_module,
+            transformed_examples=self.transformed_examples_importer
+            .outputs['result'],
+            schema=self.schema_importer.outputs['result'],
+            transform_graph=self.transform_graph_importer.outputs['result'],
+            train_args=trainer_pb2.TrainArgs(num_steps=10),
+            eval_args=trainer_pb2.EvalArgs(num_steps=5),
+            custom_config={
+                ai_platform_trainer_executor.EXECUTOR_CLASS_SPEC:
+                    executor_spec.ExecutorClassSpec(
+                        trainer_executor.GenericExecutor),
+                ai_platform_trainer_executor.TRAINING_ARGS_KEY: {
+                    'project':
+                        self._gcp_project_id,
+                    'region':
+                        self._gcp_region,
+                    'jobDir':
+                        os.path.join(self._pipeline_root(pipeline_name), 'tmp'),
+                    'masterConfig': {
+                        'imageUri': self._container_image,
+                    }
+                }
+            }),
+    ])
+    self._compile_and_run_pipeline(pipeline)
 
   # TODO(muchida): Identify more model types to ensure models trained in TF 2
   # works with CAIP prediction service.
