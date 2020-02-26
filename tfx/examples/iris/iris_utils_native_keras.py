@@ -47,8 +47,6 @@ def _gzip_reader_fn(filenames):
 def _get_serve_tf_examples_fn(model, tf_transform_output):
   """Returns a function that parses a serialized tf.Example."""
 
-  model.tft_layer = tf_transform_output.transform_features_layer()
-
   @tf.function
   def serve_tf_examples_fn(serialized_tf_examples):
     """Returns the output to be used in the serving signature."""
@@ -56,7 +54,8 @@ def _get_serve_tf_examples_fn(model, tf_transform_output):
     feature_spec.pop(_LABEL_KEY)
     parsed_features = tf.io.parse_example(serialized_tf_examples, feature_spec)
 
-    transformed_features = model.tft_layer(parsed_features)
+    transformed_features = tf_transform_output.transform_raw_features(
+        parsed_features)
     transformed_features.pop(_transformed_name(_LABEL_KEY))
 
     outputs = model(transformed_features)
@@ -114,7 +113,7 @@ def _build_keras_model() -> tf.keras.Model:
   model.compile(
       optimizer=keras.optimizers.Adam(lr=0.001),
       loss='sparse_categorical_crossentropy',
-      metrics=[keras.metrics.SparseCategoricalAccuracy()])
+      metrics=[keras.metrics.SparseCategoricalAccuracy(name='accuracy')])
 
   model.summary(print_fn=absl.logging.info)
   return model
